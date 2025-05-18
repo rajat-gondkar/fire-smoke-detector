@@ -21,16 +21,14 @@ class FireDetectorTrainer:
         self.class_names = ['fire', 'smoke', 'normal']
 
     def extract_features(self, img):
-        """Extract color histogram features from an image."""
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         hist = cv2.calcHist([hsv], [0, 1], None, [32, 32], [0, 180, 0, 256])
         cv2.normalize(hist, hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
         return hist.flatten()
-    
+
     def get_image_files(self, folder):
-        # Return all .jpg and .png files in the folder
         return list(folder.glob('*.jpg')) + list(folder.glob('*.png'))
-    
+
     def load_dataset(self, base_path):
         X, y = [], []
         for cls in self.class_names:
@@ -43,7 +41,7 @@ class FireDetectorTrainer:
         return np.array(X), np.array(y)
 
     def process_training_data(self):
-        print("Loading training data...")
+        print("Loading training data (whole images)...")
         X_train, y_train = self.load_dataset(self.training_path)
         print(f"Loaded {len(y_train)} training samples.")
         X_test, y_test = self.load_dataset(self.test_path)
@@ -79,6 +77,7 @@ class FireDetectorTrainer:
         if len(y_test) > 0:
             print("Classification report:")
             print(classification_report(y_test, clf.predict(X_test), target_names=self.class_names))
+
 
 def main():
     trainer = FireDetectorTrainer(epochs=20)  # You can set epochs here

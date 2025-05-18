@@ -99,7 +99,7 @@ class FireDetectorGUI:
             if not ret:
                 self.is_playing = False
                 break
-            processed_frame = self.detect_objects(frame)
+            processed_frame = self.classify_frame(frame)
             processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(processed_frame)
             img = ImageTk.PhotoImage(image=img)
@@ -124,24 +124,16 @@ class FireDetectorGUI:
         cv2.normalize(hist, hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
         return hist.flatten().reshape(1, -1)
     
-    def detect_objects(self, frame):
-        # Use sliding window or region proposals for detection
-        h, w, _ = frame.shape
-        window_size = 64
-        step_size = 32
-        for y in range(0, h - window_size, step_size):
-            for x in range(0, w - window_size, step_size):
-                roi = frame[y:y+window_size, x:x+window_size]
-                if roi.shape[0] != window_size or roi.shape[1] != window_size:
-                    continue
-                features = self.extract_features(roi)
-                pred = self.model.predict(features)[0]
-                if pred != 2:  # Not 'normal'
-                    color = (0, 0, 255) if pred == 0 else (128, 128, 128)
-                    label = self.class_names[pred].capitalize()
-                    cv2.rectangle(frame, (x, y), (x+window_size, y+window_size), color, 2)
-                    cv2.putText(frame, label, (x, y+15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-        return frame
+    def classify_frame(self, frame):
+        # Resize frame to a fixed size for consistency (optional, e.g., 256x256)
+        resized = cv2.resize(frame, (256, 256))
+        features = self.extract_features(resized)
+        pred = self.model.predict(features)[0]
+        label = self.class_names[pred].capitalize()
+        color = (0, 0, 255) if pred == 0 else ((128, 128, 128) if pred == 1 else (0, 255, 0))
+        # Draw label on the frame
+        cv2.putText(resized, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
+        return resized
 
 def main():
     root = tk.Tk()

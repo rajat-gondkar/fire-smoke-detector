@@ -7,9 +7,10 @@ from sklearn.svm import SVC
 from sklearn.utils import shuffle
 from sklearn.metrics import accuracy_score, classification_report
 import random
+from tqdm import tqdm
 
 class FireDetectorTrainer:
-    def __init__(self, epochs=1, patch_size=64, step_size=32, normal_patches_per_image=5):
+    def __init__(self, epochs=20, patch_size=64, step_size=32, normal_patches_per_image=5):
         self.dataset_path = Path('Dataset')
         self.splits = ['train', 'valid', 'test']
         self.patch_size = patch_size
@@ -108,7 +109,7 @@ class FireDetectorTrainer:
     def load_dataset(self, split):
         X, y = [], []
         images_dir, image_files, label_files = self.get_image_and_label_files(split)
-        for img_file in image_files:
+        for img_file in tqdm(image_files, desc=f'Loading {split} images'):
             label_file = label_files.get(img_file.stem)
             img = cv2.imread(str(img_file))
             if img is None:
@@ -138,18 +139,19 @@ class FireDetectorTrainer:
         clf = SVC(kernel='rbf', probability=True)
         best_acc = 0
         best_model = None
-        for epoch in range(1, self.epochs + 1):
+        print(f"Training for {self.epochs} epoch(s)...")
+        for epoch in tqdm(range(1, self.epochs + 1), desc='Epochs'):
             X_train_shuf, y_train_shuf = shuffle(X_train, y_train, random_state=epoch)
             clf.fit(X_train_shuf, y_train_shuf)
             if len(y_test) > 0:
                 y_pred = clf.predict(X_test)
                 acc = accuracy_score(y_test, y_pred)
-                print(f"Epoch {epoch}/{self.epochs} - Validation Accuracy: {acc*100:.2f}%")
+                tqdm.write(f"Epoch {epoch}/{self.epochs} - Validation Accuracy: {acc*100:.2f}%")
                 if acc > best_acc:
                     best_acc = acc
                     best_model = pickle.dumps(clf)
             else:
-                print(f"Epoch {epoch}/{self.epochs} - Training complete.")
+                tqdm.write(f"Epoch {epoch}/{self.epochs} - Training complete.")
         if best_model is not None:
             clf = pickle.loads(best_model)
         # Save the best model
@@ -162,7 +164,7 @@ class FireDetectorTrainer:
 
 
 def main():
-    trainer = FireDetectorTrainer(epochs=1, patch_size=64, step_size=32, normal_patches_per_image=5)
+    trainer = FireDetectorTrainer(epochs=20, patch_size=64, step_size=32, normal_patches_per_image=5)
     trainer.process_training_data()
 
 if __name__ == "__main__":

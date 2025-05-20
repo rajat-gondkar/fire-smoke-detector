@@ -1,34 +1,38 @@
 # Fire and Smoke Detection System
 
-This project implements a real-time fire and smoke detection system using OpenCV, scikit-learn, and a machine learning classifier (SVM). The system can process video input from a file and detect fire and smoke in real-time using a trained model.
+This project implements a real-time fire and smoke detection system using OpenCV, scikit-learn, and a machine learning classifier (SVM). The system is now designed to work with a YOLO v8-style dataset, using bounding box annotations to extract patches for fire, smoke, and normal (background) classes.
 
 ## Features
 
 - Real-time fire and smoke detection using a trained SVM classifier
-- Learns from your own images (not just color-based)
-- Supports both JPG and PNG images
-- Training and test set support for accuracy evaluation
-- Multiple epochs for improved training
+- Learns from your own images and bounding box annotations (not just color-based)
+- Supports YOLO v8 dataset format for object detection
+- Extracts patches for fire, smoke, and normal (background) classes
+- Training and validation set support for accuracy evaluation
+- Multiple epochs for improved training (default: 20)
+- Progress bar for both data loading and training epochs
 - Tkinter-based GUI for easy video selection and result display
 
 ## Directory Structure
 
 ```
-data/
-  training/
-    fire/
-    smoke/
-    normal/
+Dataset/
+  train/
+    images/
+    labels/
+  valid/
+    images/
+    labels/
   test/
-    fire/
-    smoke/
-    normal/
+    images/
+    labels/
+  data.yaml
 models/
 ```
 
-- Place your training images in the appropriate `data/training/` subfolders.
-- Place your test images in the appropriate `data/test/` subfolders.
-- Both `.jpg` and `.png` images are supported.
+- Place your YOLO v8 dataset in the `Dataset/` directory as shown above.
+- Each image in `images/` should have a corresponding `.txt` file in `labels/` with YOLO v8 bounding box annotations.
+- The `data.yaml` file should define your classes (e.g., Fire, Smoke).
 
 ## Requirements
 
@@ -37,68 +41,73 @@ models/
 - NumPy
 - scikit-learn
 - Pillow
+- tqdm
 
-## Installation
+## Installation & Setup
 
-1. Clone this repository
-2. Install the required packages:
-```bash
-pip3 install -r requirements.txt
-```
+1. **(Optional but recommended) Create and activate a virtual environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
 
-3. Make sure the required directories exist (these are created automatically, but you can check):
-```bash
-mkdir -p data/training/fire data/training/smoke data/training/normal data/test/fire data/test/smoke data/test/normal models
-```
+2. **Install the required packages:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Prepare your dataset:**
+   - Download or organize your YOLO v8 dataset as shown above.
+   - Make sure each image has a corresponding label file.
+   - The `data.yaml` file should list your classes (e.g., Fire, Smoke).
 
 ## Usage
 
-### 1. Prepare Your Data
-- Add your fire, smoke, and normal images to the respective folders under `data/training/` and `data/test/`.
-- The more diverse and representative your images, the better the model will perform.
-
-### 2. Train the Model
-Run the training script to extract features, train the SVM classifier for multiple epochs, and evaluate accuracy:
+### 1. Train the Model
+Run the training script to extract patches, train the SVM classifier for 20 epochs, and evaluate accuracy:
 ```bash
-python3 train_model.py
+python train_model.py
 ```
-- The script will print accuracy after each epoch and save the best model to `models/svm_model.pkl`.
-- It will also print a classification report at the end.
+- The script will show a progress bar for image loading and for each epoch.
+- Validation accuracy is printed after each epoch.
+- The best model is saved to `models/svm_model.pkl`.
+- A classification report is printed at the end.
 
-### 3. Run the Detection GUI
+### 2. Run the Detection GUI
 After training, launch the GUI to detect fire and smoke in videos:
 ```bash
-python3 fire_detector_gui.py
+python fire_detector_gui.py
 ```
 - Use the "Select Video" button to choose a video file.
-- Click "Play" to start detection. The GUI will display bounding boxes for detected fire and smoke regions in real time.
+- Click "Play" to start detection. The GUI will display the predicted class for each frame.
 - Click "Pause" or "Stop" as needed.
 
 ## How It Works
 
 - **Training:**
-  - Extracts color histogram features from each image.
-  - Trains an SVM classifier for multiple epochs, shuffling data each time.
-  - Evaluates accuracy on the test set after each epoch.
+  - For each image, extracts patches from bounding boxes (fire/smoke) and random non-overlapping patches (normal).
+  - Extracts color histogram features from each patch.
+  - Trains an SVM classifier for 20 epochs, shuffling data each time.
+  - Evaluates accuracy on the validation set after each epoch.
   - Saves the best model.
 
 - **Detection:**
   - The GUI loads the trained SVM model.
-  - Each video frame is scanned using a sliding window.
-  - Each region is classified as fire, smoke, or normal using the SVM.
-  - Detected regions are highlighted with bounding boxes and labels.
+  - Each video frame is classified as fire, smoke, or normal using the SVM (on the whole frame or patch, depending on GUI version).
+  - The predicted class is displayed on the frame.
 
 ## Notes
 
-- The system does not rely on simple color thresholding; it learns from your images.
+- The system does not rely on simple color thresholding; it learns from your annotated dataset.
 - For best results, provide a diverse and well-labeled dataset.
-- You can increase the number of epochs in `train_model.py` for longer training.
+- You can increase or decrease the number of epochs in `train_model.py`.
 - If you add more images, re-run the training script to update the model.
 
 ## Troubleshooting
 
-- If you see an error about missing `svm_model.pkl`, make sure you have run the training script and that your data folders contain images.
+- If you see an error about missing `svm_model.pkl`, make sure you have run the training script and that your dataset is correctly formatted.
 - If you encounter any other errors, check that all dependencies are installed and that your Python version is compatible.
+- If you get a `ModuleNotFoundError`, make sure you are in your virtual environment and have installed all requirements.
 
 ## License
 

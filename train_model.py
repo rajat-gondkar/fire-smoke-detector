@@ -3,18 +3,19 @@ import numpy as np
 import os
 from pathlib import Path
 import pickle
-from sklearn.svm import SVC
+from sklearn.linear_model import SGDClassifier
 from sklearn.utils import shuffle
 from sklearn.metrics import accuracy_score, classification_report
 from tqdm import tqdm
 
 class FireDetectorTrainer:
-    def __init__(self, epochs=20, patch_size=64, step_size=32):
+    def __init__(self, epochs=20, patch_size=64, step_size=32, batch_size=2048):
         self.dataset_path = Path('Dataset')
         self.splits = ['train', 'valid', 'test']
         self.patch_size = patch_size
         self.step_size = step_size
         self.epochs = epochs
+        self.batch_size = batch_size
         self.model_path = Path('models')
         self.model_path.mkdir(exist_ok=True)
         self.class_names = ['Fire', 'Smoke']
@@ -100,13 +101,20 @@ class FireDetectorTrainer:
         if len(y_test) == 0:
             print("Warning: No validation data found. Accuracy will not be reported.")
 
-        clf = SVC(kernel='rbf', probability=True)
+        clf = SGDClassifier(loss='hinge', max_iter=1, tol=None, warm_start=True, n_jobs=-1)
         best_acc = 0
         best_model = None
         print(f"Training for {self.epochs} epoch(s)...")
         for epoch in tqdm(range(1, self.epochs + 1), desc='Epochs'):
             X_train_shuf, y_train_shuf = shuffle(X_train, y_train, random_state=epoch)
-            clf.fit(X_train_shuf, y_train_shuf)
+            # Train in batches for partial_fit
+            for i in range(0, len(X_train_shuf), self.batch_size):
+                X_batch = X_train_shuf[i:i+self.batch_size]
+                y_batch = y_train_shuf[i:i+self.batch_size]
+                if epoch == 1 and i == 0:
+                    clf.partial_fit(X_batch, y_batch, classes=np.array([0, 1]))
+                else:
+                    clf.partial_fit(X_batch, y_batch)
             if len(y_test) > 0:
                 y_pred = clf.predict(X_test)
                 acc = accuracy_score(y_test, y_pred)
@@ -128,7 +136,7 @@ class FireDetectorTrainer:
 
 
 def main():
-    trainer = FireDetectorTrainer(epochs=20, patch_size=64, step_size=32)
+    trainer = FireDetectorTrainer(epochs=20, patch_size=64, step_size=32, batch_size=2048)
     trainer.process_training_data()
 
 if __name__ == "__main__":

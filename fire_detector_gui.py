@@ -19,14 +19,15 @@ class FireDetectorGUI:
         self.cap = None
         self.is_playing = False
         self.frame_queue = queue.Queue(maxsize=2)
-        self.class_names = ['fire', 'smoke', 'normal']
+        self.class_names = ['Fire', 'Smoke']
         
         # Load trained SVM model
         self.model = self.load_model()
         if self.model is None:
             messagebox.showerror("Model Error", "Trained model not found. Please run train_model.py first.")
-            self.root.destroy()
-            return
+            # Don't destroy the root here, let the GUI open with Play button disabled
+            # self.root.destroy()
+            # return
         
         # Create GUI elements
         self.create_widgets()
@@ -48,7 +49,7 @@ class FireDetectorGUI:
         control_frame = ttk.Frame(main_frame)
         control_frame.grid(row=1, column=0, columnspan=2, pady=10)
         ttk.Button(control_frame, text="Select Video", command=self.select_video).pack(side=tk.LEFT, padx=5)
-        self.play_button = ttk.Button(control_frame, text="Play", command=self.toggle_play)
+        self.play_button = ttk.Button(control_frame, text="Play", command=self.toggle_play, state=tk.DISABLED)
         self.play_button.pack(side=tk.LEFT, padx=5)
         ttk.Button(control_frame, text="Stop", command=self.stop_video).pack(side=tk.LEFT, padx=5)
         self.status_label = ttk.Label(main_frame, text="Status: Ready")
@@ -60,7 +61,10 @@ class FireDetectorGUI:
         )
         if self.video_path:
             self.status_label.config(text=f"Status: Video selected - {self.video_path}")
-            self.play_button.config(state=tk.NORMAL)
+            if self.model is not None: # Only enable play if model is loaded
+                self.play_button.config(state=tk.NORMAL)
+            else:
+                self.status_label.config(text="Status: Video selected - Model not loaded. Train first.")
     
     def toggle_play(self):
         if not self.is_playing:
@@ -69,9 +73,17 @@ class FireDetectorGUI:
             self.pause_video()
     
     def start_video(self):
-        if not self.video_path:
+        if not self.video_path or self.model is None: # Also check if model is loaded
             return
+        
         self.cap = cv2.VideoCapture(self.video_path)
+        
+        if not self.cap.isOpened(): # Check if video capture was successful
+            messagebox.showerror("Error", "Could not open video file.")
+            self.is_playing = False
+            self.status_label.config(text="Status: Error opening video")
+            return
+            
         self.is_playing = True
         self.play_button.config(text="Pause")
         self.status_label.config(text="Status: Playing")
@@ -98,7 +110,16 @@ class FireDetectorGUI:
             ret, frame = self.cap.read()
             if not ret:
                 self.is_playing = False
+                self.status_label.config(text="Status: Playback finished")
+                # Consider stopping video display here or showing last frame
                 break
+            
+            # Ensure model is available before predicting
+            if self.model is None:
+                 self.is_playing = False
+                 self.status_label.config(text="Status: Model not loaded, stopping playback.")
+                 break
+
             processed_frame = self.classify_frame(frame)
             processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(processed_frame)
@@ -128,9 +149,19 @@ class FireDetectorGUI:
         # Resize frame to a fixed size for consistency (optional, e.g., 256x256)
         resized = cv2.resize(frame, (256, 256))
         features = self.extract_features(resized)
+        # Ensure model is available before predicting (redundant check but safe)
+        if self.model is None:
+            return resized # Return original or resized frame without prediction
+            
         pred = self.model.predict(features)[0]
-        label = self.class_names[pred].capitalize()
-        color = (0, 0, 255) if pred == 0 else ((128, 128, 128) if pred == 1 else (0, 255, 0))
+        # Handle potential out-of-bounds prediction if model is somehow corrupted
+        if pred < 0 or pred >= len(self.class_names):
+             label = "Unknown"
+             color = (0, 255, 255) # Yellow for unknown
+        else:
+            label = self.class_names[pred].capitalize()
+            color = (0, 0, 255) if pred == 0 else (128, 128, 128) # Red for Fire, Gray for Smoke
+            
         # Draw label on the frame
         cv2.putText(resized, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
         return resized

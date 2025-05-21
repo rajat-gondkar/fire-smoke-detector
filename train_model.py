@@ -6,21 +6,19 @@ import pickle
 from sklearn.svm import SVC
 from sklearn.utils import shuffle
 from sklearn.metrics import accuracy_score, classification_report
-import random
 from tqdm import tqdm
 
 class FireDetectorTrainer:
-    def __init__(self, epochs=20, patch_size=64, step_size=32, normal_patches_per_image=5):
+    def __init__(self, epochs=20, patch_size=64, step_size=32):
         self.dataset_path = Path('Dataset')
         self.splits = ['train', 'valid', 'test']
         self.patch_size = patch_size
         self.step_size = step_size
         self.epochs = epochs
-        self.normal_patches_per_image = normal_patches_per_image
         self.model_path = Path('models')
         self.model_path.mkdir(exist_ok=True)
-        self.class_names = ['Fire', 'Smoke', 'Normal']
-        self.class_map = {'Fire': 0, 'Smoke': 1, 'Normal': 2}
+        self.class_names = ['Fire', 'Smoke']
+        self.class_map = {'Fire': 0, 'Smoke': 1}
         self.yolo_class_map = {0: 0, 1: 1}  # YOLO class 0->Fire, 1->Smoke
 
     def extract_features(self, img):
@@ -44,6 +42,8 @@ class FireDetectorTrainer:
                 if len(parts) != 5:
                     continue
                 cls_id, x_c, y_c, w, h = map(float, parts)
+                if int(cls_id) not in self.yolo_class_map:
+                    continue
                 x_c, y_c, w, h = x_c * img_w, y_c * img_h, w * img_w, h * img_h
                 x1 = int(x_c - w / 2)
                 y1 = int(y_c - h / 2)
@@ -52,29 +52,10 @@ class FireDetectorTrainer:
                 boxes.append({'class': int(cls_id), 'bbox': (x1, y1, x2, y2)})
         return boxes
 
-    def patch_overlaps(self, patch, boxes):
-        px1, py1, px2, py2 = patch
-        for box in boxes:
-            bx1, by1, bx2, by2 = box['bbox']
-            # Calculate intersection
-            ix1 = max(px1, bx1)
-            iy1 = max(py1, by1)
-            ix2 = min(px2, bx2)
-            iy2 = min(py2, by2)
-            iw = max(0, ix2 - ix1)
-            ih = max(0, iy2 - iy1)
-            intersection = iw * ih
-            patch_area = (px2 - px1) * (py2 - py1)
-            if patch_area == 0:
-                continue
-            if intersection / patch_area > 0.2:  # >20% overlap
-                return True
-        return False
-
     def extract_patches(self, img, boxes):
         h, w, _ = img.shape
         X, y = [], []
-        # Extract fire/smoke patches
+        # Only extract fire/smoke patches
         for box in boxes:
             x1, y1, x2, y2 = box['bbox']
             # Center crop to patch size
@@ -87,23 +68,6 @@ class FireDetectorTrainer:
             if patch.shape[0] == self.patch_size and patch.shape[1] == self.patch_size:
                 X.append(self.extract_features(patch))
                 y.append(self.yolo_class_map[box['class']])
-        # Extract normal patches
-        normal_count = 0
-        attempts = 0
-        max_attempts = self.normal_patches_per_image * 10
-        while normal_count < self.normal_patches_per_image and attempts < max_attempts:
-            px1 = random.randint(0, w - self.patch_size)
-            py1 = random.randint(0, h - self.patch_size)
-            px2 = px1 + self.patch_size
-            py2 = py1 + self.patch_size
-            patch_box = (px1, py1, px2, py2)
-            if not self.patch_overlaps(patch_box, boxes):
-                patch = img[py1:py2, px1:px2]
-                if patch.shape[0] == self.patch_size and patch.shape[1] == self.patch_size:
-                    X.append(self.extract_features(patch))
-                    y.append(2)  # Normal
-                    normal_count += 1
-            attempts += 1
         return X, y
 
     def load_dataset(self, split):
@@ -124,7 +88,7 @@ class FireDetectorTrainer:
         return np.array(X), np.array(y)
 
     def process_training_data(self):
-        print("Loading training data (YOLO patches)...")
+        print("Loading training data (YOLO fire/smoke patches only)...")
         X_train, y_train = self.load_dataset('train')
         print(f"Loaded {len(y_train)} training patches.")
         X_test, y_test = self.load_dataset('valid')
@@ -164,7 +128,7 @@ class FireDetectorTrainer:
 
 
 def main():
-    trainer = FireDetectorTrainer(epochs=20, patch_size=64, step_size=32, normal_patches_per_image=5)
+    trainer = FireDetectorTrainer(epochs=20, patch_size=64, step_size=32)
     trainer.process_training_data()
 
 if __name__ == "__main__":

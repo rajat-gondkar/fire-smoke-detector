@@ -9,13 +9,9 @@ import os
 # Load the trained SVM model
 @st.cache_resource # Cache the model loading
 def load_model():
-    model_path = Path('models/svm_model.pkl')
-    if not model_path.exists():
-        return None
     try:
-        with open(model_path, 'rb') as f:
-            model = pickle.load(f)
-        return model
+        with open(Path('models/svm_model.pkl'), 'rb') as f:
+            return pickle.load(f)
     except Exception as e:
         st.error(f"Error loading model: {e}")
         return None
@@ -29,27 +25,18 @@ def extract_features(img):
 
 # Classify frame function (adapted from GUI)
 def classify_frame(frame, model, class_names):
-    # Resize frame for consistency (optional, e.g., 256x256)
-    resized = cv2.resize(frame, (256, 256))
-    features = extract_features(resized)
+    # Extract features from the frame
+    features = extract_features(frame)
     
-    if model is None:
-        # Cannot classify without a model
-        label = "Model not loaded"
-        color = (0, 255, 255) # Yellow
-    else:
-        pred = model.predict(features)[0]
-        # Handle potential out-of-bounds prediction
-        if pred < 0 or pred >= len(class_names):
-            label = "Unknown"
-            color = (0, 255, 255) # Yellow for unknown
-        else:
-            label = class_names[pred].capitalize()
-            color = (0, 0, 255) if pred == 0 else (128, 128, 128) # Red for Fire, Gray for Smoke
+    # Get prediction
+    prediction = model.predict(features)[0]
+    confidence = model.decision_function(features)[0]
     
-    # Draw label on the frame
-    cv2.putText(resized, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
-    return resized
+    # Add prediction text to frame
+    label = f"{class_names[prediction]} ({abs(confidence):.2f})"
+    cv2.putText(frame, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    
+    return frame
 
 # --- Streamlit App --- 
 

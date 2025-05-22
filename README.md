@@ -1,114 +1,153 @@
 # Fire and Smoke Detection System
 
-This project implements a real-time fire and smoke detection system using OpenCV, scikit-learn, and a machine learning classifier (SVM). The system is now designed to work with a YOLO v8-style dataset, using bounding box annotations to extract patches for fire, smoke, and normal (background) classes.
+A computer vision-based system for detecting fire and smoke in videos using machine learning. The system uses a static learning approach with color histogram features and SVM classification.
 
-## Features
+## Technical Overview
 
-- Real-time fire and smoke detection using a trained SVM classifier
-- Learns from your own images and bounding box annotations (not just color-based)
-- Supports YOLO v8 dataset format for object detection
-- Extracts patches for fire, smoke, and normal (background) classes
-- Training and validation set support for accuracy evaluation
-- Multiple epochs for improved training (default: 20)
-- Progress bar for both data loading and training epochs
-- Tkinter-based GUI for easy video selection and result display
+### Model Architecture
+- **Classifier**: SGDClassifier (Stochastic Gradient Descent) with hinge loss (Linear SVM)
+- **Feature Extraction**: HSV Color Histograms
+  - 32x32 bins for Hue and Saturation channels
+  - Normalized histogram values
+- **Training Approach**: Static learning with fixed parameters
+  - 10 epochs
+  - Batch size: 2048
+  - Patch size: 64x64 pixels
+  - Step size: 32 pixels
 
-## Directory Structure
+### Technical Stack
+- **Computer Vision**: OpenCV (cv2)
+- **Machine Learning**: scikit-learn
+- **Web Interface**: Streamlit
+- **Data Processing**: NumPy
+- **Progress Tracking**: tqdm
 
+## Dataset Structure
 ```
 Dataset/
-  train/
-    images/
-    labels/
-  valid/
-    images/
-    labels/
-  test/
-    images/
-    labels/
-  data.yaml
-models/
+├── train/
+│   ├── images/
+│   │   └── *.jpg
+│   └── labels/
+│       └── *.txt
+├── valid/
+│   ├── images/
+│   │   └── *.jpg
+│   └── labels/
+│       └── *.txt
+└── test/
+    ├── images/
+    │   └── *.jpg
+    └── labels/
+        └── *.txt
 ```
 
-- Place your YOLO v8 dataset in the `Dataset/` directory as shown above.
-- Each image in `images/` should have a corresponding `.txt` file in `labels/` with YOLO v8 bounding box annotations.
-- The `data.yaml` file should define your classes (e.g., Fire, Smoke).
+## Installation
 
-## Requirements
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd FireDetector
+```
 
-- Python 3.7+
-- OpenCV
-- NumPy
-- scikit-learn
-- Pillow
-- tqdm
+2. Create and activate a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-## Installation & Setup
-
-1. **(Optional but recommended) Create and activate a virtual environment:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-2. **Install the required packages:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Prepare your dataset:**
-   - Download or organize your YOLO v8 dataset as shown above.
-   - Make sure each image has a corresponding label file.
-   - The `data.yaml` file should list your classes (e.g., Fire, Smoke).
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
 ## Usage
 
-### 1. Train the Model
-Run the training script to extract patches, train the SVM classifier for 20 epochs, and evaluate accuracy:
+### 1. Training the Model
 ```bash
 python train_model.py
 ```
-- The script will show a progress bar for image loading and for each epoch.
-- Validation accuracy is printed after each epoch.
-- The best model is saved to `models/svm_model.pkl`.
-- A classification report is printed at the end.
+The training process:
+1. Loads images and YOLO format labels from the Dataset directory
+2. Extracts patches from labeled regions (fire/smoke)
+3. Computes HSV color histograms for each patch
+4. Trains the SVM classifier for 10 epochs
+5. Saves the trained model to `models/svm_model.pkl`
 
-### 2. Run the Detection GUI
-After training, launch the GUI to detect fire and smoke in videos:
+### 2. Running the Web Interface
 ```bash
-python fire_detector_gui.py
+streamlit run streamlit_app.py
 ```
-- Use the "Select Video" button to choose a video file.
-- Click "Play" to start detection. The GUI will display the predicted class for each frame.
-- Click "Pause" or "Stop" as needed.
+The web interface:
+1. Loads the trained model
+2. Provides a video upload interface
+3. Processes the video frame by frame
+4. Displays predictions with confidence scores
+5. Shows real-time detection results
 
 ## How It Works
 
-- **Training:**
-  - For each image, extracts patches from bounding boxes (fire/smoke) and random non-overlapping patches (normal).
-  - Extracts color histogram features from each patch.
-  - Trains an SVM classifier for 20 epochs, shuffling data each time.
-  - Evaluates accuracy on the validation set after each epoch.
-  - Saves the best model.
+### Training Process
+1. **Data Loading**:
+   - Images are loaded from the Dataset directory
+   - YOLO format labels are parsed to get bounding boxes
+   - Only patches containing fire/smoke are extracted
 
-- **Detection:**
-  - The GUI loads the trained SVM model.
-  - Each video frame is classified as fire, smoke, or normal using the SVM (on the whole frame or patch, depending on GUI version).
-  - The predicted class is displayed on the frame.
+2. **Feature Extraction**:
+   - Images are converted to HSV color space
+   - 2D histograms are computed for Hue and Saturation channels
+   - Histograms are normalized to [0,1] range
+   - Features are flattened into 1D vectors
 
-## Notes
+3. **Model Training**:
+   - SGDClassifier with hinge loss is initialized
+   - Training data is shuffled for each epoch
+   - Model is trained in batches of 2048 samples
+   - Validation accuracy is computed after each epoch
 
-- The system does not rely on simple color thresholding; it learns from your annotated dataset.
-- For best results, provide a diverse and well-labeled dataset.
-- You can increase or decrease the number of epochs in `train_model.py`.
-- If you add more images, re-run the training script to update the model.
+### Detection Process
+1. **Frame Processing**:
+   - Each video frame is processed independently
+   - HSV color histograms are computed
+   - Features are fed to the trained model
+
+2. **Prediction**:
+   - Model predicts class (Fire/Smoke)
+   - Decision function provides confidence score
+   - Results are displayed on the frame
+
+## Performance Considerations
+- Processing speed depends on:
+  - Video resolution
+  - Hardware capabilities
+  - System resources
+- The model uses static learning, so performance is consistent across runs
+- No GPU acceleration is required
+
+## Limitations
+- Static learning approach may not capture complex patterns
+- Relies heavily on color features
+- No temporal information consideration
+- Fixed number of epochs (10)
+
+## Future Improvements
+- Implement deep learning-based approach
+- Add temporal information processing
+- Include more feature types
+- Add real-time video stream support
+- Implement GPU acceleration
 
 ## Troubleshooting
 
-- If you see an error about missing `svm_model.pkl`, make sure you have run the training script and that your dataset is correctly formatted.
-- If you encounter any other errors, check that all dependencies are installed and that your Python version is compatible.
-- If you get a `ModuleNotFoundError`, make sure you are in your virtual environment and have installed all requirements.
+### Common Issues
+1. **Model not found**:
+   - Ensure you've run `train_model.py` first
+   - Check if `models/svm_model.pkl` exists
 
-## License
+2. **Video processing errors**:
+   - Verify video format (supported: mp4, avi, mov)
+   - Check video file integrity
 
-MIT License 
+3. **Memory issues**:
+   - Reduce batch size in `train_model.py`
+   - Process lower resolution videos

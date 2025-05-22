@@ -9,7 +9,7 @@ from sklearn.metrics import accuracy_score, classification_report
 from tqdm import tqdm
 
 class FireDetectorTrainer:
-    def __init__(self, epochs=20, patch_size=64, step_size=32, batch_size=2048):
+    def __init__(self, epochs=10, patch_size=64, step_size=32, batch_size=2048):
         self.dataset_path = Path('Dataset')
         self.splits = ['train', 'valid', 'test']
         self.patch_size = patch_size
@@ -101,13 +101,13 @@ class FireDetectorTrainer:
         if len(y_test) == 0:
             print("Warning: No validation data found. Accuracy will not be reported.")
 
+        # Initialize classifier with static learning
         clf = SGDClassifier(loss='hinge', max_iter=1, tol=None, warm_start=True, n_jobs=-1)
-        best_acc = 0
-        best_model = None
+        
         print(f"Training for {self.epochs} epoch(s)...")
         for epoch in tqdm(range(1, self.epochs + 1), desc='Epochs'):
             X_train_shuf, y_train_shuf = shuffle(X_train, y_train, random_state=epoch)
-            # Train in batches for partial_fit
+            # Train in batches
             for i in range(0, len(X_train_shuf), self.batch_size):
                 X_batch = X_train_shuf[i:i+self.batch_size]
                 y_batch = y_train_shuf[i:i+self.batch_size]
@@ -115,28 +115,22 @@ class FireDetectorTrainer:
                     clf.partial_fit(X_batch, y_batch, classes=np.array([0, 1]))
                 else:
                     clf.partial_fit(X_batch, y_batch)
+            
             if len(y_test) > 0:
                 y_pred = clf.predict(X_test)
                 acc = accuracy_score(y_test, y_pred)
                 tqdm.write(f"Epoch {epoch}/{self.epochs} - Validation Accuracy: {acc*100:.2f}%")
-                if acc > best_acc:
-                    best_acc = acc
-                    best_model = pickle.dumps(clf)
-            else:
-                tqdm.write(f"Epoch {epoch}/{self.epochs} - Training complete.")
-        if best_model is not None:
-            clf = pickle.loads(best_model)
-        # Save the best model
+
+        # Save the model
         with open(self.model_path / 'svm_model.pkl', 'wb') as f:
             pickle.dump(clf, f)
-        print(f"Best model saved to {self.model_path / 'svm_model.pkl'}")
+        print(f"Model saved to {self.model_path / 'svm_model.pkl'}")
         if len(y_test) > 0:
             print("Classification report:")
             print(classification_report(y_test, clf.predict(X_test), target_names=self.class_names))
 
-
 def main():
-    trainer = FireDetectorTrainer(epochs=20, patch_size=64, step_size=32, batch_size=2048)
+    trainer = FireDetectorTrainer(epochs=10, patch_size=64, step_size=32, batch_size=2048)
     trainer.process_training_data()
 
 if __name__ == "__main__":
